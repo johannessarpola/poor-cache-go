@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = " github.com/johannessarpola/poor-redis-go/pb";
+import "google/protobuf/timestamp.proto";
+
+message Value {
+    bytes data = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp modified_at = 3;
+}
