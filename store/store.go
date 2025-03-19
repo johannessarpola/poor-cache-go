@@ -156,16 +156,23 @@ func (s *Store) takekOutTheTrash(quit chan struct{}) {
 
 func (s *Store) cleanupExpiredKeys(quit chan struct{}) {
 	ticker := time.Tick(s.cleanupInterval)
+	timeouter := make(chan struct{}, 1)
 	for {
-		for key, _ := range s.data {
-			select {
-			case <-quit:
-				fmt.Println("Observer exiting...")
-				return
-			case <-ticker:
-				s.cleanupQueue <- key
-			}
+		select {
+		case <-quit:
+			timeouter <- struct{}{}
+			fmt.Println("Observer exiting...")
+			return
+		case <-ticker:
+			for key, data := range s.data {
+				if time.Now().After(data.expiration) {
+					select {
+					case <-timeouter:
+					case s.cleanupQueue <- key:
+					}
+				}
 
+			}
 		}
 
 	}
