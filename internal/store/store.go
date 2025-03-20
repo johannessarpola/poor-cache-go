@@ -4,25 +4,14 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/johannessarpola/poor-cache-go/internal/common"
+	"github.com/johannessarpola/poor-cache-go/internal/rest"
 )
-
-type Meta struct {
-	CreatedAt  time.Time
-	ModifiedAt time.Time
-}
-
-type Value struct {
-	Meta Meta
-	Data []byte
-}
-type item struct {
-	value      Value
-	expiration time.Time
-}
 
 type Store struct {
 	mu              sync.RWMutex
-	data            map[string]item
+	data            map[string]common.Item
 	cleanupInterval time.Duration
 	cleanupQueue    chan string
 	mainQuit        chan struct{}
@@ -38,13 +27,15 @@ func WithCleanupInterval(interval time.Duration) Option {
 	}
 }
 
+var _ rest.Store = (*Store)(nil)
+
 const bufferSize = 32
 
 func New(opt ...Option) *Store {
 	wg := &sync.WaitGroup{}
 	s := &Store{
 		wg:              wg,
-		data:            make(map[string]item),
+		data:            make(map[string]common.Item),
 		cleanupInterval: 1 * time.Minute,
 		cleanupQueue:    make(chan string, bufferSize),
 		mainQuit:        make(chan struct{}, 1),
@@ -87,17 +78,17 @@ func (s *Store) Set(key string, value any, ttl time.Duration) error {
 		return err
 	}
 
-	meta := Meta{
+	meta := common.Meta{
 		CreatedAt:  time.Now(),
 		ModifiedAt: time.Now(),
 	}
 
 	expiration := time.Now().Add(ttl)
-	s.data[key] = item{value: Value{Meta: meta, Data: v}, expiration: expiration}
+	s.data[key] = common.Item{Value: common.Value{Meta: meta, Data: v}, Expiration: expiration}
 	return nil
 }
 
-func (s *Store) Get(key string, dest any) (*Meta, error) {
+func (s *Store) Get(key string, dest any) (*common.Meta, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	item, exists := s.data[key]
@@ -105,13 +96,13 @@ func (s *Store) Get(key string, dest any) (*Meta, error) {
 		return nil, nil
 	}
 
-	if time.Now().After(item.expiration) {
+	if time.Now().After(item.Expiration) {
 		s.cleanupQueue <- key // This should not block since the channel is buffered.
 		return nil, nil
 	}
 
-	meta := item.value.Meta
-	err := Deserialize(item.value.Data, dest)
+	meta := item.Value.Meta
+	err := Deserialize(item.Value.Data, dest)
 	return &meta, err
 }
 
@@ -157,7 +148,7 @@ func (s *Store) cleanupExpiredKeys(quit chan struct{}) {
 			return
 		case <-ticker:
 			for key, data := range s.data {
-				if time.Now().After(data.expiration) {
+				if time.Now().After(data.Expiration) {
 					select {
 					case <-timeouter:
 					case s.cleanupQueue <- key:
