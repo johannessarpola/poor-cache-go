@@ -8,20 +8,21 @@ import (
 )
 
 func Serialize(value any) ([]byte, error) {
-	data, err := json.Marshal(value)
+	var compressed bytes.Buffer
+	writer := zlib.NewWriter(&compressed)
+
+	encoder := json.NewEncoder(writer)
+
+	err := encoder.Encode(value)
 	if err != nil {
 		return nil, err
 	}
 
-	// Compress the JSON data
-	var compressed bytes.Buffer
-	writer := zlib.NewWriter(&compressed)
-	_, err = writer.Write(data)
+	err = writer.Close()
 	if err != nil {
-		fmt.Println("Error compressing data:", err)
+		fmt.Println("Error closing zlib writer:", err)
 		return nil, err
 	}
-	writer.Close()
 
 	return compressed.Bytes(), nil
 }
@@ -33,10 +34,6 @@ func Deserialize(data []byte, dest any) error {
 		return err
 	}
 	defer reader.Close()
-	var decompressed bytes.Buffer
-	_, err = decompressed.ReadFrom(reader)
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(decompressed.Bytes(), dest)
+
+	return json.NewDecoder(reader).Decode(dest)
 }
