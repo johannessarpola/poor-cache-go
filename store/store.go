@@ -4,10 +4,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/johannessarpola/poor-cache-go/pb"
-	"google.golang.org/protobuf/proto"
-	proto_time "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type Meta struct {
@@ -15,17 +11,12 @@ type Meta struct {
 	ModifiedAt time.Time
 }
 
-func ExtractMeta(value *pb.Value) Meta {
-
-	meta := Meta{
-		CreatedAt:  value.CreatedAt.AsTime(),
-		ModifiedAt: value.ModifiedAt.AsTime(),
-	}
-	return meta
+type Value struct {
+	Meta Meta
+	Data []byte
 }
-
 type item struct {
-	value      []byte
+	value      Value
 	expiration time.Time
 }
 
@@ -35,7 +26,8 @@ type Store struct {
 	cleanupInterval time.Duration
 	cleanupQueue    chan string
 	mainQuit        chan struct{}
-	subQuits        []chan struct{}
+	subQuits        []chan struct{} // this is to broadcast the quit signal to all subroutines
+	wg              *sync.WaitGroup
 }
 
 type Option func(*Store)
@@ -49,7 +41,9 @@ func WithCleanupInterval(interval time.Duration) Option {
 const bufferSize = 32
 
 func New(opt ...Option) *Store {
+	wg := &sync.WaitGroup{}
 	s := &Store{
+		wg:              wg,
 		data:            make(map[string]item),
 		cleanupInterval: 1 * time.Minute,
 		cleanupQueue:    make(chan string, bufferSize),
@@ -63,10 +57,15 @@ func New(opt ...Option) *Store {
 	q1 := make(chan struct{}, 1)
 	s.subQuits = append(s.subQuits, q1)
 	go s.cleanupExpiredKeys(q1)
+	wg.Add(1)
+
 	q2 := make(chan struct{}, 1)
 	s.subQuits = append(s.subQuits, q2)
 	go s.takekOutTheTrash(q2)
+	wg.Add(1)
+
 	go s.broadcastQuits()
+	wg.Add(1)
 	return s
 }
 
@@ -76,6 +75,7 @@ func (s *Store) broadcastQuits() {
 		q <- struct{}{}
 		close(q)
 	}
+	s.wg.Done()
 }
 
 func (s *Store) Set(key string, value any, ttl time.Duration) error {
@@ -87,41 +87,31 @@ func (s *Store) Set(key string, value any, ttl time.Duration) error {
 		return err
 	}
 
-	now := proto_time.Now()
-	if v.CreatedAt == nil {
-		v.CreatedAt = now // Set creation time if not set
-	}
-	v.ModifiedAt = now // Update modified time
-
-	serialized, err := proto.Marshal(v)
-	if err != nil {
-		return err
+	meta := Meta{
+		CreatedAt:  time.Now(),
+		ModifiedAt: time.Now(),
 	}
 
 	expiration := time.Now().Add(ttl)
-	s.data[key] = item{value: serialized, expiration: expiration}
+	s.data[key] = item{value: Value{Meta: meta, Data: v}, expiration: expiration}
 	return nil
 }
 
 func (s *Store) Get(key string, dest any) (*Meta, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	data, exists := s.data[key]
+	item, exists := s.data[key]
 	if !exists {
 		return nil, nil
 	}
 
-	if time.Now().After(data.expiration) {
+	if time.Now().After(item.expiration) {
+		s.cleanupQueue <- key // This should not block since the channel is buffered.
 		return nil, nil
 	}
 
-	var pbValue pb.Value
-	if err := proto.Unmarshal(data.value, &pbValue); err != nil {
-		return nil, err
-	}
-
-	meta := ExtractMeta(&pbValue)
-	err := Deserialize(&pbValue, dest)
+	meta := item.value.Meta
+	err := Deserialize(item.value.Data, dest)
 	return &meta, err
 }
 
@@ -144,6 +134,7 @@ func (s *Store) takekOutTheTrash(quit chan struct{}) {
 		select {
 		case <-quit:
 			fmt.Println("Trashman exiting...")
+			s.wg.Done()
 			return
 		case v, ok := <-s.cleanupQueue:
 			if !ok {
@@ -162,6 +153,7 @@ func (s *Store) cleanupExpiredKeys(quit chan struct{}) {
 		case <-quit:
 			timeouter <- struct{}{}
 			fmt.Println("Observer exiting...")
+			s.wg.Done()
 			return
 		case <-ticker:
 			for key, data := range s.data {
@@ -171,14 +163,13 @@ func (s *Store) cleanupExpiredKeys(quit chan struct{}) {
 					case s.cleanupQueue <- key:
 					}
 				}
-
 			}
 		}
-
 	}
 }
 
 func (s *Store) Close() {
 	s.mainQuit <- struct{}{}
 	close(s.mainQuit)
+	s.wg.Wait()
 }
