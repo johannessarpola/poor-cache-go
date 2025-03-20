@@ -30,7 +30,7 @@ func (s *Service) setHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Value set successfully"})
+	c.JSON(http.StatusCreated, gin.H{"message": "Value set successfully"})
 }
 
 func (s *Service) getHandler(c *gin.Context) {

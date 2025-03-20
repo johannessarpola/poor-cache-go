@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: http://localhost:8080/api/v1/set/abc?ttl=100s
+  url: http://localhost:8080/api/v1/set/{{key}}?ttl=100s
   body: json
   auth: inherit
 }
@@ -19,4 +19,20 @@ body:json {
     "heading" : "heading",
     "body" : "body"
   }
+}
+
+script:pre-request {
+  const length = 10;
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomKey = `key-${generateRandomString(length, characters)}`;
+  
+  bru.setVar('key', randomKey)
+  bru.setVar("body", JSON.stringify(req.body))
+}
+
+tests {
+  test("should get 201", function () {
+    expect(res.getStatus()).to.equal(201);
+  });
+  
 }
