@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "poor-cache",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
