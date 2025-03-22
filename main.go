@@ -13,8 +13,10 @@ func main() {
 	store := store.New()
 	r := gin.Default()
 
-	rg := r.Group("/api/v1")
-	rest.SetupRouter(rg, store)
+	v1group := r.Group("/api/v1")
+	v1Svc := rest.New(store)
+
+	rest.SetupRouter(v1group, v1Svc)
 
 	port := os.Getenv("PORT")
 	if port == "" {
