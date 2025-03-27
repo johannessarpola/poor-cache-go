@@ -6,12 +6,15 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/johannessarpola/poor-cache-go/internal/logger"
 )
 
-var errBadJson = errors.New("invalid json body")
-var errBadQuery = errors.New("invalid query parameters")
-var errInternal = errors.New("internal server error")
-var errNotFound = errors.New("not found")
+var (
+	errBadJson  = errors.New("invalid json body")
+	errBadQuery = errors.New("invalid query parameters")
+	errInternal = errors.New("internal server error")
+	errNotFound = errors.New("not found")
+)
 
 func newErr(err error) map[string]any {
 	return gin.H{"error": err.Error()}
@@ -36,7 +39,7 @@ func (s *Service) SetHandler(c *gin.Context) {
 	}
 
 	if err := s.store.Set(key, value, params.TTL); err != nil {
-		// TODO logging
+		logger.Errorf("Could not set key %s with value %#v", key, value)
 		c.JSON(http.StatusInternalServerError, newErr(errInternal))
 		return
 	}
@@ -49,7 +52,7 @@ func (s *Service) GetHandler(c *gin.Context) {
 	var dest any
 	meta, err := s.store.Get(key, &dest)
 	if err != nil {
-		// TODO logging
+		logger.Errorf("Could not get key %s", key)
 		c.JSON(http.StatusInternalServerError, newErr(errInternal))
 		return
 	}
