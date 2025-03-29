@@ -5,13 +5,13 @@ meta {
 }
 
 post {
-  url: http://localhost:8080/api/v1/set/{{key}}?ttl=100s
+  url: http://localhost:8080/api/v1/set/{{key}}?ttl=1000s
   body: json
   auth: inherit
 }
 
 params:query {
-  ttl: 100s
+  ttl: 1000s
 }
 
 body:json {

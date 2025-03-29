@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"runtime/debug"
+	"syscall"
 
 	"github.com/gin-gonic/gin"
 	"github.com/johannessarpola/poor-cache-go/internal/logger"
 	"github.com/johannessarpola/poor-cache-go/internal/middleware"
 	"github.com/johannessarpola/poor-cache-go/internal/rest"
 	"github.com/johannessarpola/poor-cache-go/internal/store"
+	"github.com/johannessarpola/poor-cache-go/internal/udp"
 )
 
 var Version = ""
@@ -45,5 +49,32 @@ func main() {
 		port = "8080"
 	}
 
-	r.Run(fmt.Sprintf(":%s", port))
+	// Create a context that listens for SIGTERM signals
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	defer stop()
+
+	go func() {
+		if err := r.Run(fmt.Sprintf(":%s", port)); err != nil {
+			logger.Errorf("Failed to start HTTP server %e", err)
+		}
+	}()
+
+	udpServer := udp.New("0.0.0.0", 8081, store)
+	go func() {
+		if err := udpServer.Start(); err != nil {
+			logger.Errorf("Failed to start UDP server %e", err)
+		}
+	}()
+
+	// Wait for the SIGTERM signal
+	<-ctx.Done()
+
+	logger.Info("Received SIGTERM, shutting down gracefully")
+
+	// cleanup
+	udpServer.Close()
+	store.Close()
+
+	os.Exit(0)
+
 }

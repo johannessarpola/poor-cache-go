@@ -111,15 +111,16 @@ func retrieveCallInfo(skip int) *callInfo {
 // Log messages with package name and filename
 func (l *Logger) Log(level logrus.Level, msgf string, args ...any) {
 	ci := retrieveCallInfo(3)
-	if l.Logger.GetLevel() <= logrus.Level(level) {
-		var msg string
-		if len(args) > 0 {
-			msg = fmt.Sprintf(msgf, args...)
-		} else {
-			msg = msgf
-		}
-		l.Logf(level, "%s(%s:%d): %s", filepath.Base(os.Args[0]), ci.fileName, ci.line, msg)
+	// TODO re-eanble later
+	// if l.Logger.GetLevel() <= logrus.Level(level) {
+	var msg string
+	if len(args) > 0 {
+		msg = fmt.Sprintf(msgf, args...)
+	} else {
+		msg = msgf
 	}
+	l.Logf(level, "%s(%s:%d): %s", filepath.Base(os.Args[0]), ci.fileName, ci.line, msg)
+	//}
 }
 
 func Debug(msg string) {
