@@ -9,8 +9,13 @@ import (
 	"testing"
 	"time"
 
+	_ "embed"
+
 	"github.com/johannessarpola/poor-cache-go/tests/tooling"
 )
+
+//go:embed data.json
+var data []byte
 
 const (
 	host    = "http://localhost:8080"
@@ -65,7 +70,8 @@ func BenchmarkRestAPIShotgun(b *testing.B) {
 	seed := rand.NewSource(seedn)
 	r := rand.New(seed)
 
-	source, err := tooling.LoadFrom("out.json")
+	bb := bytes.NewBuffer(data)
+	source, err := tooling.UnmarshalFrom(bb)
 	if err != nil {
 		b.Errorf("Failed to load source: %v", err)
 	}

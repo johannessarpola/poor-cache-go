@@ -2,6 +2,7 @@ package tooling
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"sync"
 )
@@ -40,18 +41,20 @@ func New(keys []string) *KeySource {
 	}
 }
 
+func UnmarshalFrom(r io.Reader) (*KeySource, error) {
+	var keys []string
+	err := json.NewDecoder(r).Decode(&keys)
+	if err != nil {
+		return nil, err
+	}
+	return New(keys), nil
+}
+
 func LoadFrom(file string) (*KeySource, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-
-	var keys []string
-	err = json.NewDecoder(f).Decode(&keys)
-	if err != nil {
-		return nil, err
-	}
-
-	return New(keys), nil
+	return UnmarshalFrom(f)
 }
