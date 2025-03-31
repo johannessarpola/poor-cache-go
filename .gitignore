@@ -10,3 +10,5 @@ go.mod
 .tmp
 debug.log
 .vscode
+app
+!/tests/data.json

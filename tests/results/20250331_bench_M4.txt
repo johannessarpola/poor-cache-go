@@ -1,0 +1,8 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/johannessarpola/poor-cache-go/tests
+cpu: Apple M4 Pro
+BenchmarkRestAPI
+BenchmarkRestAPI-14    	   16256	    579464 ns/op	         0 errors/op	         0.4942 failure/op	         7.566 latency_ms/op	         0.5058 ok/op
+PASS
+ok  	github.com/johannessarpola/poor-cache-go/tests	10.404s
